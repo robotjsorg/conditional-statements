@@ -32,6 +32,33 @@ const HomePage = () => {
     }
   };
 
+  const extractJsonFromMarkdown = (text: string): string => {
+    const fencedMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+    if (fencedMatch && fencedMatch[1]) {
+      return fencedMatch[1].trim();
+    }
+
+    const cleaned = text.trim();
+    if (!cleaned.startsWith('{') && cleaned.includes('{') && cleaned.includes('}')) {
+      const first = cleaned.indexOf('{');
+      const last = cleaned.lastIndexOf('}');
+      if (first >= 0 && last > first) {
+        return cleaned.substring(first, last + 1).trim();
+      }
+    }
+
+    return cleaned;
+  };
+
+  const parseJsonResponse = (text: string): any => {
+    const jsonText = extractJsonFromMarkdown(text);
+    try {
+      return JSON.parse(jsonText);
+    } catch (parseError) {
+      throw new Error(`Failed to parse JSON from AI response: ${parseError instanceof Error ? parseError.message : String(parseError)}. Raw response: ${text}`);
+    }
+  };
+
   const normalizeModelName = (modelName: string) => {
     return modelName.replace(/^models\//, '');
   };
@@ -141,15 +168,15 @@ const HomePage = () => {
         const finalAttemptPrompt = `Extract the cause (p) and effect (q) from this statement and return it *only* as a JSON object like {"p": "...", "q": "..."}. Statement: "${reformatted}"`;
         const jsonResultResponse = await safeCallAI(finalAttemptPrompt, apiKey);
         effectiveModel = jsonResultResponse.model;
-        const parsedJson = JSON.parse(jsonResultResponse.text || '{}');
-          if (parsedJson.p && parsedJson.q) {
-            p = parsedJson.p;
-            q = parsedJson.q;
-          } else {
-            throw new Error("AI response was not in the expected format.");
-          }
+        const parsedJson = parseJsonResponse(jsonResultResponse.text || '');
+        if (parsedJson.p && parsedJson.q) {
+          p = parsedJson.p;
+          q = parsedJson.q;
+        } else {
+          throw new Error("AI response was not in the expected format.");
         }
       }
+    }
 
       const negatePResponse = await safeCallAI(`Provide only the grammatically correct negation of: "${p}". Do not include any additional text, explanations, or punctuation beyond the negation itself.`, apiKey);
       const negateQResponse = await safeCallAI(`Provide only the grammatically correct negation of: "${q}". Do not include any additional text, explanations, or punctuation beyond the negation itself.`, apiKey);
