@@ -13,22 +13,78 @@ const HomePage = () => {
   const [apiKey, setApiKey] = useState('');
   const [input, setInput] = useState('');
   const [statements, setStatements] = useState<Statements | null>(null);
+  const [usedModel, setUsedModel] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const callAI = async (prompt: string, key: string) => {
+  const callAI = async (prompt: string, key: string, model: string) => {
+    if (!key) throw new Error("Missing API key");
     try {
-      if (!key) throw new Error("Missing API key");
       const genAI = new GoogleGenAI({ apiKey: key });
       const response = await genAI.models.generateContent({
-        model: "gemini-2.5-flash",
+        model,
         contents: prompt,
       });
       return response.text?.trim() ?? null;
     } catch (e: any) {
-      setError(`AI API Error: ${e.message}`);
-      return null;
+      const message = e?.message || "Unknown API error";
+      throw new Error(message);
     }
+  };
+
+  const normalizeModelName = (modelName: string) => {
+    return modelName.replace(/^models\//, '');
+  };
+
+  const getModelCandidates = async (key: string): Promise<string[]> => {
+    const fallback = ["gemini-2.5-flash", "gemini-1.5-flash", "gemini-1.0", "gemini-2.0", "gemini-alpha"];
+    if (!key) return fallback;
+
+    try {
+      const genAI = new GoogleGenAI({ apiKey: key });
+      const listResponse = await genAI.models.list();
+      const available: string[] = [];
+      for await (const model of listResponse) {
+        const name = model?.name?.toString?.().trim();
+        if (name && !available.includes(name)) {
+          available.push(name);
+        }
+      }
+
+      if (!available.length) return fallback;
+
+      const bestFirst = ["gemini-2.5-flash", "gemini-2.1-flash", "gemini-1.5-flash", "gemini-1.0-flash"];
+      const prioritized = Array.from(
+        new Set([
+          ...bestFirst.filter((name) => available.includes(name)),
+          ...available,
+          ...fallback,
+        ])
+      );
+      return prioritized;
+    } catch {
+      return fallback;
+    }
+  };
+
+  const safeCallAI = async (prompt: string, key: string): Promise<{ text: string; model: string }> => {
+    const errorMessages: string[] = [];
+    const models = await getModelCandidates(key);
+
+    for (const model of models) {
+      try {
+        const normalizedModel = normalizeModelName(model);
+        const result = await callAI(prompt, key, model);
+        if (result) return { text: result, model: normalizedModel };
+        errorMessages.push(`Empty response from ${model}`);
+      } catch (e: any) {
+        const errMsg = e?.message?.toString() || "Unknown AI error";
+        errorMessages.push(`${model}: ${errMsg}`);
+        continue;
+      }
+    }
+
+    throw new Error(`All model attempts failed: ${errorMessages.join(" | ")}`);
   };
 
   const parseStatement = (statement: string): { p: string; q: string } | null => {
@@ -56,63 +112,62 @@ const HomePage = () => {
       return;
     }
 
-    let p: string, q: string;
+    try {
+      let p: string, q: string;
+      let effectiveModel: string | null = null;
 
-    const parsed = parseStatement(input);
+      const parsed = parseStatement(input);
 
-    if (parsed) {
-      p = parsed.p;
-      q = parsed.q;
-    } else {
-      const reformatPrompt = `Reformat the following statement into a standard "If p, then q" structure. Return only the reformatted statement, nothing else. Input: "${input}"`;
-      const reformatted = await callAI(reformatPrompt, apiKey);
-
-      if (reformatted) {
-        const newParsed = parseStatement(reformatted);
-        if (newParsed) {
-          p = newParsed.p;
-          q = newParsed.q;
-        } else {
-           const finalAttemptPrompt = `Extract the cause (p) and effect (q) from this statement and return it *only* as a JSON object like {"p": "...", "q": "..."}. Statement: "${reformatted}"`;
-           const jsonResult = await callAI(finalAttemptPrompt, apiKey);
-           try {
-             const parsedJson = JSON.parse(jsonResult || '{}');
-             if (parsedJson.p && parsedJson.q) {
-               p = parsedJson.p;
-               q = parsedJson.q;
-             } else {
-                throw new Error("AI response was not in the expected format.");
-             }
-           } catch {
-              setError("The AI was unable to process the statement. Please try rephrasing your input.");
-              setLoading(false);
-              return;
-           }
-        }
+      if (parsed) {
+        p = parsed.p;
+        q = parsed.q;
       } else {
-         setLoading(false);
-         return;
+        const reformatPrompt = `Reformat the following statement into a standard "If p, then q" structure. Return only the reformatted statement, nothing else. Input: "${input}"`;
+        const reformattedResponse = await safeCallAI(reformatPrompt, apiKey);
+        effectiveModel = reformattedResponse.model;
+        const reformatted = reformattedResponse.text;
+
+      const newParsed = reformatted ? parseStatement(reformatted) : null;
+      if (newParsed && newParsed.p && newParsed.q) {
+        p = newParsed.p;
+        q = newParsed.q;
+      } else {
+        const finalAttemptPrompt = `Extract the cause (p) and effect (q) from this statement and return it *only* as a JSON object like {"p": "...", "q": "..."}. Statement: "${reformatted}"`;
+        const jsonResultResponse = await safeCallAI(finalAttemptPrompt, apiKey);
+        effectiveModel = jsonResultResponse.model;
+        const parsedJson = JSON.parse(jsonResultResponse.text || '{}');
+          if (parsedJson.p && parsedJson.q) {
+            p = parsedJson.p;
+            q = parsedJson.q;
+          } else {
+            throw new Error("AI response was not in the expected format.");
+          }
+        }
       }
-    }
 
-    const negateP = callAI(`Provide only the grammatically correct negation of: "${p}". Do not include any additional text, explanations, or punctuation beyond the negation itself.`, apiKey);
-    const negateQ = callAI(`Provide only the grammatically correct negation of: "${q}". Do not include any additional text, explanations, or punctuation beyond the negation itself.`, apiKey);
+      const negatePResponse = await safeCallAI(`Provide only the grammatically correct negation of: "${p}". Do not include any additional text, explanations, or punctuation beyond the negation itself.`, apiKey);
+      const negateQResponse = await safeCallAI(`Provide only the grammatically correct negation of: "${q}". Do not include any additional text, explanations, or punctuation beyond the negation itself.`, apiKey);
 
-    const [notP, notQ] = await Promise.all([negateP, negateQ]);
+      const notP = negatePResponse.text;
+      const notQ = negateQResponse.text;
+      effectiveModel = normalizeModelName(negateQResponse.model || negatePResponse.model || effectiveModel || '');
 
-    if (!notP || !notQ) {
-        setLoading(false);
-        return;
-    }
-    
-    setStatements({
+      if (!notP || !notQ) {
+        throw new Error("AI could not generate negations");
+      }
+
+      setUsedModel(effectiveModel);
+      setStatements({
         original: `If ${p}, then ${q}.`,
         converse: `If ${q}, then ${p}.`,
         inverse: `If ${notP}, then ${notQ}.`,
         contrapositive: `If ${notQ}, then ${notP}.`,
-    });
-
-    setLoading(false);
+      });
+    } catch (e: any) {
+      setError(`AI API Error: ${e?.message || 'Unknown error'}`);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -148,6 +203,7 @@ const HomePage = () => {
 
       {statements && (
         <div className="results">
+          {usedModel && <p className="model-info">Generated by model: {usedModel}</p>}
           <h3>Generated Statements</h3>
           <div className="statement-grid">
             <div className="statement-result-card">
