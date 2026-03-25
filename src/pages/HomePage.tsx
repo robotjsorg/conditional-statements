@@ -112,6 +112,12 @@ const HomePage = () => {
       return;
     }
 
+    if (!input.trim()) {
+      setError("Please enter a conditional statement.");
+      setLoading(false);
+      return;
+    }
+
     try {
       let p: string, q: string;
       let effectiveModel: string | null = null;
@@ -173,7 +179,16 @@ const HomePage = () => {
   return (
     <div className="container">
       <h2>Generate Conditional Statements</h2>
-      <p className="page-description">Enter a conditional statement, and the AI will attempt to format and process it.</p>
+      <p className="page-description">
+        Enter a conditional statement, and the AI will attempt to format and process it.
+      </p>
+      <p className="page-description">
+        To use this app, create a Google Cloud API key and enable the AI APIs in your project.
+      </p>
+      <p className="page-description">
+        Follow the docs: <a href="https://cloud.google.com/docs/authentication/api-keys" target="_blank" rel="noreferrer">Google Cloud API key docs</a>&nbsp;
+        and manage credentials at <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noreferrer">Google Cloud Console</a>.
+      </p>
       <form onSubmit={handleSubmit} className={`statement-form ${loading ? 'loading' : ''}`}>
         <div className="input-container">
           <input
@@ -183,20 +198,22 @@ const HomePage = () => {
             placeholder="Enter your API key"
             disabled={loading}
           />
-          </div>
-          <div className="input-container">
+        </div>
+        <div className="input-container">
           <input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="e.g., if a humanoid robot is safe, then it cannot harm a human"
+            placeholder="e.g., if it is raining, then the ground is wet"
             disabled={loading}
           />
+        </div>
+        <div className="input-container button-row">
+          <button type="submit" disabled={loading}>
+            {loading ? 'Processing...' : 'Generate'}
+          </button>
           {loading && <div className="loader"></div>}
         </div>
-        <button type="submit" disabled={loading}>
-          {loading ? 'Processing...' : 'Generate'}
-        </button>
       </form>
 
       {error && <p className="error-message">{error}</p>}

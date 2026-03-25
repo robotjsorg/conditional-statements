@@ -1,3 +1,78 @@
 .container {
   padding: 2rem;
+  max-width: 860px;
+  margin: 0 auto;
+}
+
+.explanation-container {
+  background-color: #fefefe;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 1.5rem 2rem;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.04);
+}
+
+h2 {
+  margin-bottom: 0.75rem;
+  color: #1f2937;
+}
+
+h3 {
+  margin-top: 1.25rem;
+  margin-bottom: 0.5rem;
+  color: #111827;
+}
+
+.explanation-intro,
+.explanation-text,
+.note {
+  color: #374151;
+  line-height: 1.7;
+  margin-bottom: 1rem;
+}
+
+.conditional-example {
+  margin: 1rem 0;
+  padding: 0.75rem 1rem;
+  border-left: 4px solid #3b82f6;
+  background-color: #eff6ff;
+  color: #1e40af;
+  font-style: italic;
+}
+
+.explanation-list {
+  margin: 0.75rem 0 1rem 1.1rem;
+  padding-left: 0;
+  list-style: none;
+  color: #1f2937;
+}
+
+.explanation-list li {
+  margin-bottom: 0.5rem;
+}
+
+.explanation-card-grid,
+.statement-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.statement-result-card {
+  background-color: #f9fafb;
+  border: 1px solid #dbeafe;
+  border-radius: 8px;
+  padding: 1rem;
+}
+
+.statement-result-card h4 {
+  margin-top: 0;
+  color: #1d4ed8;
+}
+
+.statement-result-card p {
+  margin: 0;
+  line-height: 1.5;
+  color: #1f2937;
 }
