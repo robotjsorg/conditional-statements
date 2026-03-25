@@ -64,7 +64,7 @@ const HomePage = () => {
       p = parsed.p;
       q = parsed.q;
     } else {
-      const reformatPrompt = `Reformat the following statement into a standard "If p, then q" structure. If the statement is nonsensical or cannot be reasonably reformatted, create a clear, simple "if-then" statement based on any discernible intent. Input: "${input}"`;
+      const reformatPrompt = `Reformat the following statement into a standard "If p, then q" structure. Return only the reformatted statement, nothing else. Input: "${input}"`;
       const reformatted = await callAI(reformatPrompt, apiKey);
 
       if (reformatted) {
@@ -95,8 +95,8 @@ const HomePage = () => {
       }
     }
 
-    const negateP = callAI(`Provide the grammatically correct negation of the following phrase: "${p}"`, apiKey);
-    const negateQ = callAI(`Provide the grammatically correct negation of the following phrase: "${q}"`, apiKey);
+    const negateP = callAI(`Provide only the grammatically correct negation of: "${p}". Do not include any additional text, explanations, or punctuation beyond the negation itself.`, apiKey);
+    const negateQ = callAI(`Provide only the grammatically correct negation of: "${q}". Do not include any additional text, explanations, or punctuation beyond the negation itself.`, apiKey);
 
     const [notP, notQ] = await Promise.all([negateP, negateQ]);
 
