@@ -18,11 +18,13 @@ const HomePage = () => {
 
   const callAI = async (prompt: string, key: string) => {
     try {
-      const genAI = new GoogleGenAI(key as any);
-      const model = (genAI as any).getGenerativeModel({ model: "gemini-1.5-flash" });
-      const result = await model.generateContent(prompt);
-      const response = await result.response;
-      return response.text().trim();
+      if (!key) throw new Error("Missing API key");
+      const genAI = new GoogleGenAI({ apiKey: key });
+      const response = await genAI.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: prompt,
+      });
+      return response.text?.trim() ?? null;
     } catch (e: any) {
       setError(`AI API Error: ${e.message}`);
       return null;
